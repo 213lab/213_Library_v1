@@ -24,7 +24,7 @@ from scipy.spatial.distance import cdist
 from scipy.spatial.distance import pdist
 from scipy.spatial.distance import squareform
 
-
+print('test')
 class cluster:
     def k_means(self, data, K, tol, N):
         n = np.shape(data)[0]
