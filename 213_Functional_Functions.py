@@ -20,10 +20,16 @@ from matplotlib.patches import ConnectionPatch
 from datetime import datetime
 
 def forecasting_dataset_perparation(data, look_back):
+    """
+    预测数据集准备
+    :param data: 源数据
+    :param look_back: 用作特征数据的前look back个数据
+    :return: X_train: 训练集输入； Y_train: 训练集输出； X_test: 测试机输入； y_test: 测试机输出
+    注：数据集整理格式为(seq_len, batch, input_size)；
+        本函数所得数据集在训练时采用的方式full batch learning，该种方式对较小样本集有着更好的效果，可以更好的收敛。
+        需要注意的是，该种数据集处理方法并不适用于在线过程，在线预测数据集的输入需要迭代更新，而不能使用full batch learning。
+    """
     #设置数据集，即前look_back个时间序列用来预测后一个时间序列
-    #数据集整理格式为(seq_len, batch, input_size)
-    #本函数所得数据集在训练时采用的方式full batch learning，该种方式对较小样本集有着更好的效果，可以更好的收敛。
-    #需要注意的是，该种数据集处理方法并不适用于在线过程，在线预测数据集的输入需要迭代更新，而不能使用full batch learning。
     x_data, y_data = [], []
     data = data.tolist()
     for i in range(len(data) - look_back):
@@ -51,11 +57,18 @@ def forecasting_dataset_perparation(data, look_back):
     return X_train, Y_train, X_test, y_test
 
 class criteria:
+    #评价指标
     def __init__(self, true, pred):
+        """
+        评价指标初始化
+        :param true: 真实值
+        :param pred: 预测值
+        """
         self.true_value = true
         self.pred_value = pred
 
     def MAPE(self):
+        #MAPE
         true = np.array(self.true_value)
         pred = np.array(self.pred_value)
         for i in range(len(true)):
@@ -66,17 +79,28 @@ class criteria:
         return mape
     
     def MAE(self):
+        #MAE
         return mean_absolute_error(self.true_value, self.pred_value)
 
     def MSE(self):
+        #MSE
         return mean_squared_error(self.true_value, self.pred_value)
 
     def LCAIR(self):
+        #LCAIR，用以衡量预测滞后性，已投Neurocomputing
         lcair = (mean_squared_error(self.true_value[: len(self.true_value) - 1], self.pred_value[1: ]) - mean_squared_error(self.true_value, self.pred_value)) / mean_squared_error(self.true_value, self.pred_value)
         return lcair
 
 class communication:
+    #通讯模块
     def kafka_send(self, msg_dict, brokers, topic):
+        """
+        kafka发送信息
+        :param msg_dict: 日志消息
+        :param brokers: kafka实例名称
+        :param topic: 主题
+        :return: 无
+        """
         #return
         msg_dict['calculate_time'] = str(datetime.now())[:19]
         msg = json.dumps(msg_dict)
@@ -95,11 +119,18 @@ class communication:
         p.flush()
 
 class visualization:
+    #可视化
     def date_plot_with_path(self, path, plot_date):
+        """
+        根据给定路径文件和给定目标日期画图
+        :param path: 目标路径文件
+        :param plot_date: 目标日期
+        :return: 无
+        """
         data = pd.read_csv(path, engine='python')
         # data = pd.read_excel(path)
         date = data['TIME']
-        value = data['0']
+        value = data['VALUE']
         date = pd.to_datetime(date)
         date = date.dt.strftime('%Y-%m-%d')  # 格式转换，消去小数。
 
@@ -113,15 +144,17 @@ class visualization:
                     value_plot.ix[count, i] = value.iloc[j]
                     count += 1
             count = 0
-            # plt.figure(i)
-            # print(value_plot[i])
-            # plt.plot(value_plot[i], linewidth=3, color='xkcd:light blue')
             plt.plot(value_plot[i], linewidth=3, alpha=0.6)
             plt.tight_layout()
-            # plt.fill_between(x=range(333), y1=np.min(value_plot[i]), y2=value_plot[i], facecolor='xkcd:very light blue')
             plt.title('Flow curve of day {}'.format(plot_date[i]))
 
     def date_plot_with_value(self, data, plot_date):
+        """
+        根据给定数据给给定目标日期画图
+        :param data: 给定数据
+        :param plot_date: 目标日期
+        :return: 无
+        """
         date = data['TIME']
         value = data['VALUE']
         date = pd.to_datetime(date)
@@ -136,15 +169,26 @@ class visualization:
                     value_plot.ix[count, i] = value.iloc[j]
                     count += 1
             count = 0
-            # plt.figure(i)
-            # print(value_plot[i])
-            # plt.plot(value_plot[i], linewidth=3, color='xkcd:light blue')
             plt.plot(value_plot[i], linewidth=3, alpha=0.6)
             plt.tight_layout()
-            # plt.fill_between(x=range(333), y1=np.min(value_plot[i]), y2=value_plot[i], facecolor='xkcd:very light blue')
             plt.title('Flow curve of day {}'.format(plot_date[i]))
 
     def local_highlight_plot(self, true, pred, left_top_down, left_top_up, left_top_l, left_top_r, right_top_down, right_top_up, right_top_l, right_top_r):
+        """
+        部分高亮画图
+        :param true: 真实值
+        :param pred: 预测值
+        :param left_top_down: 左上角高亮数值下限
+        :param left_top_up: 左上角高亮数值上限
+        :param left_top_l: 左上角高亮横轴最小值
+        :param left_top_r: 左上角高亮横轴最大值
+        :param right_top_down: 右上角高亮数值下限
+        :param right_top_up: 右上角高亮数值上限
+        :param right_top_l: 右上角高亮横轴最小值
+        :param right_top_r: 右上角高亮横轴最大值
+        :return: 无
+        注：部分参数还要修改，主要是下方大图的上下限以及connect path的位置
+        """
         fig = plt.figure(figsize=(14, 6))
         plt.axes().get_yaxis().set_visible(False)
         plt.axes().get_xaxis().set_visible(False)

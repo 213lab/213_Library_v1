@@ -10,6 +10,8 @@
         5.时标数据缺失值插补；
         6.噪声数据平滑处理；
         7.one-hot编码
+注意事项： 1.文档中应不含汉字，否则在读入时要对encoding选项进行设置；
+          2。文档中日期的列名应为'TIME'，所对应值的列名应为'VALUE'
 """
 
 import numpy as np
@@ -23,23 +25,43 @@ from scipy.signal import savgol_filter
 
 
 def data_load_from_csv(path):
+    """
+    csv文件数据读入
+    :param path: 文件所在路径
+    :return: 导入数据
+    """
     data = pd.read_csv(path, engine='python')
     processed_data = data_nanAzero_process(data)
     return processed_data
 
 def data_load_from_excel(path):
+    """
+    excel文件数据读入
+    :param path: 文件所在路径
+    :return: 导入数据
+    """
     data = pd.read_excel(path, engine='python')
     processed_data = data_nanAzero_process(data)
     return processed_data
 
 def data_nanAzero_process(data):
+    """
+    数据NAN与0值处理
+    :param data: 从文档中读入的数据
+    :return: 处理后的数据
+    """
     data['VALUE'].replace(0,np.nan,inplace=True)
     processed_data = data['VALUE'].fillna(data['VALUE'].interpolate())
     return processed_data
 
 def data_normalization(data):
-    raw_data = data.dropna()  # 去掉na数据
-    raw_data = raw_data.values
+    """
+    数据归一化
+    :param data: 从文档中读入的数据
+    :return: 处理后的数据
+    """
+    #raw_data = data.dropna()  # 去掉na数据
+    raw_data = data.values
     '''注：数据归一化处理时，不可以用原矩阵重新赋值！！！！！否则np.min的值会改变！！！'''
     processed_data = np.empty(len(raw_data))
     for i in range(len(processed_data)):
@@ -47,9 +69,21 @@ def data_normalization(data):
     return processed_data
 
 def data_standardlization(data):
+    """
+    数据标准化
+    :param data: 从文档中读入的数据
+    :return: 处理后的数据
+    """
     return StandardScaler().fit(data)
 
 def date_repetition_process(data, date_field='TIME', value_field='VALUE'):
+    """
+    数据重复处理（包括日期数据）
+    :param data: 输入数据
+    :param date_field: 日期字段，默认为'TIME'
+    :param value_field: 值字段，默认为'VALUE'
+    :return: 重复日期/值处理后的数据
+    """
     date = data[date_field]
     value = data[value_field]
     # 重复值剔除
@@ -67,12 +101,20 @@ def date_repetition_process(data, date_field='TIME', value_field='VALUE'):
     rep_proc_value[count] = value[value.index[i]]
     count = 0
     print('重复值已剔除')
-    print(rep_proc_date, rep_proc_value)
+    #print(rep_proc_date, rep_proc_value)
     processed_data = pd.concat([rep_proc_date, rep_proc_value], axis=1)
     processed_data.rename(columns={'0': 'TIME', '1': 'VALUE'}, inplace=True)
     return processed_data
 
 def date_missing_process(data, target_len, date_field='TIME', value_field='VALUE'):
+    """
+    数据缺失值处理（包括日期数据）
+    :param data: 输入数据
+    :param target_len: 处理后序列目标长度
+    :param date_field: 日期字段，默认为'TIME'
+    :param value_field: 值字段，默认为'VALUE'
+    :return: 日期数据插补处理后的数据
+    """
     count = 0
     date = data[date_field]
     value = data[value_field]
@@ -97,12 +139,26 @@ def date_missing_process(data, target_len, date_field='TIME', value_field='VALUE
     return processed_data
 
 def sequence_smooth(data, window_size, order):
+    """
+    数据平滑降噪
+    :param data: 输入数据
+    :param window_size: 滑窗大小
+    :param order: 阶数
+    :return: 平滑处理后的数据
+    """
     value = data['VALUE']
-    date = data['TIME']
+    #date = data['TIME']
     processed_value = savgol_filter(value, window_size, order)
     return processed_value
 
 def data_export_to_csv(data, filename):
+    """
+    数据输出存储
+    :param data: 存储的数据
+    :param filename: 存储文件名
+    :return: 无
+    注：存储时若文件已存在，则会覆盖
+    """
     if not os.path.exists(filename):
         fd = open(filename, mode='w')
         fd.close()
@@ -113,6 +169,11 @@ def data_export_to_csv(data, filename):
         print('写入错误，请检查！')
 
 def one_hot(data):
+    """
+    one hot编码
+    :param data: 输入数据（应为字符串数组）
+    :return: 编码结果
+    """
     values = np.array(data)
     #整数编码
     label_encoder = LabelEncoder()
@@ -122,7 +183,7 @@ def one_hot(data):
     integer_encoded = integer_encoded.reshape(len(integer_encoded), 1)
     onehot_encoded = onehot_encoder.fit_transform(integer_encoded)
     #第一个的编码结果
-    inverted = label_encoder.inverse_transform([np.argmax(onehot_encoded[0, :])])
+    inverted = label_encoder.inverse_transform([np.argmax(onehot_encoded)])
     return inverted
 
 
