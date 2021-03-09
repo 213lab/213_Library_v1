@@ -6,7 +6,7 @@
         2.爬虫算法
         3.lenet5卷积网络（简易图像识别）
         4.LSTM简单网络结构
-        5.预测方法（细粒度预测、加权马尔科夫链）
+        5.预测方法（细粒度预测、加权马尔科夫链（五阶））
         6.Transformer（整理中）
 """
 
@@ -17,15 +17,12 @@ import torch.nn as nn
 import torch.nn.functional as  F
 import re
 import time
-import os
 import requests
 from bs4 import BeautifulSoup
 from scipy.spatial.distance import cdist
 from scipy.spatial.distance import pdist
 from scipy.spatial.distance import squareform
 
-print('test')
-print('test2')
 class cluster:
     def k_means(self, data, K, tol, N):
         n = np.shape(data)[0]
@@ -86,7 +83,6 @@ class crawler:
             return None
 
     def get_url_list(self, detailed_html, html):
-        # 将get_page函数中获取页面中的会议论文的URL信息解析出来
         url_list = []
         pattern = re.compile("this.id,'(.*?)'", re.S)
         ids = pattern.findall(html)
@@ -98,15 +94,12 @@ class crawler:
         details = self.get_html(url)
         # 使用beautifulSoup进行解析
         soup = BeautifulSoup(details, 'lxml')
-        # 题目
         single_text = soup.select(single_index)[0].text
-        # 摘要
         area_text = soup.select(area_index)[0].textarea
         if area_text:
             area_text = area_text.text.strip()
         else:
             area_text = ''
-
         information = [single_text, area_text]
         return information
 
@@ -159,10 +152,11 @@ class leNet5(nn.Module):
             num_features *= s
         return num_features
 
+
 class forecasting:
-    def fine_grained_forecasting(self, data):
+    def fine_grained_forecasting(self, data, value_num):
         date = data['TIME']
-        flow = data['0']
+        flow = data['VALUE']
         cum_flow = pd.DataFrame(np.zeros(int(len(date) / 1440)))  # 行数表示每天的累计流量
         count = 0
         flag = np.zeros(int(len(date) / 1440), dtype=int)
@@ -171,113 +165,73 @@ class forecasting:
         print('时间为：\n{}'.format(date))
         print('瞬时值为：\n{}'.format(flow))
 
-        # 累积流量计算
+        # 累计值计算
         for i in range(len(date)):
-            # print(date[i])
-            # print(i)
             if i >= 1 and date[i] != date[i - 1]:  # 找到新一天的索引
-                # print(flag[count])
                 cum_flow.iloc[count] = sum(flow[flag[count]: i])  # 补上最后一天累计流量
                 count += 1
                 flag[count] = i  # 每更新一天，flag也随之更新一天
-            # print(count)
         aim_day = 115
-        print('累积流量为：\n{}'.format(cum_flow))
+        print('累积值为：\n{}'.format(cum_flow))
 
-        flow_num = 1440
-        forecasting_flow = pd.DataFrame(np.zeros([7, flow_num]))
+        forecasting_flow = pd.DataFrame(np.zeros([7, value_num]))
 
         for index in range(7):
             delta = pd.DataFrame(np.zeros(aim_day + index - 1))
             for t in range(aim_day + index - 1):
                 delta.iloc[t] = abs(cum_flow.iloc[t] - cum_flow.iloc[aim_day + index])
-            print('当前为周{}，差值为{}'.format(index + 1, delta))
+            #print('当前为周{}，差值为{}'.format(index + 1, delta))
             closest = delta.sort_values(by=[0], ascending=True)
             closest_weekends = 0
             count = 0
             for j in range(3):
                 if closest.index[j] % 7 == 4 or closest.index[j] % 7 == 5:
                     closest_weekends += 1
-            print('最接近的几天为：\n{}'.format(closest))
             for i in range(len(date)):
-                # print(i)
-                if i >= 1 and date[i] != date[i - 1]:  # 到新的一天了
-                    # print(count, closest.index[0], closest.index[1], closest.index[2])
+                if i >= 1 and date[i] != date[i - 1]:
                     if count == closest.index[0] or count == closest.index[1] or count == closest.index[2]:
                         if (aim_day + index) % 7 == 4 or (aim_day + index) % 7 == 5:
                             if closest_weekends == 0:
-                                for j in range(flow_num):  # 若是则挨个取平均
-                                    forecasting_flow.ix[index, j] = forecasting_flow.ix[index, j] + (1 / 3) * flow[
-                                        i + j]
-                                print(index, 'a')
+                                for j in range(value_num):  # 若是则挨个取平均
+                                    forecasting_flow.ix[index, j] = forecasting_flow.ix[index, j] + (1 / 3) * flow[i + j]
                             elif closest_weekends == 1:
                                 if closest.index[index] % 7 == 4 or closest.index[index] % 7 == 5:
-                                    for j in range(flow_num):  # 若是则挨个取平均
-                                        forecasting_flow.ix[index, j] = forecasting_flow.ix[index, j] + (1 / 3) * flow[
-                                            i + j]
+                                    for j in range(value_num):  # 若是则挨个取平均
+                                        forecasting_flow.ix[index, j] = forecasting_flow.ix[index, j] + (1 / 3) * flow[i + j]
                                 else:
-                                    for j in range(flow_num):  # 若是则挨个取平均
-                                        forecasting_flow.ix[index, j] = forecasting_flow.ix[index, j] + (1 / 3) * flow[
-                                            i + j]
-                                print(index, 'b')
+                                    for j in range(value_num):  # 若是则挨个取平均
+                                        forecasting_flow.ix[index, j] = forecasting_flow.ix[index, j] + (1 / 3) * flow[i + j]
                             elif closest_weekends == 2:
                                 if closest.index[index] % 7 == 4 or closest.index[index] % 7 == 5:
-                                    for j in range(flow_num):  # 若是则挨个取平均
-                                        forecasting_flow.ix[index, j] = forecasting_flow.ix[index, j] + (1 / 3) * flow[
-                                            i + j]
+                                    for j in range(value_num):  # 若是则挨个取平均
+                                        forecasting_flow.ix[index, j] = forecasting_flow.ix[index, j] + (1 / 3) * flow[i + j]
                                 else:
-                                    for j in range(flow_num):  # 若是则挨个取平均
-                                        forecasting_flow.ix[index, j] = forecasting_flow.ix[index, j] + (1 / 3) * flow[
-                                            i + j]
-                                print(index, 'c')
+                                    for j in range(value_num):  # 若是则挨个取平均
+                                        forecasting_flow.ix[index, j] = forecasting_flow.ix[index, j] + (1 / 3) * flow[i + j]
                         else:
                             if closest_weekends == 0:
-                                for j in range(flow_num):  # 若是则挨个取平均
-                                    forecasting_flow.ix[index, j] = forecasting_flow.ix[index, j] + (1 / 3) * flow[
-                                        i + j]
-                                print(index, 'e')
+                                for j in range(value_num):  # 若是则挨个取平均
+                                    forecasting_flow.ix[index, j] = forecasting_flow.ix[index, j] + (1 / 3) * flow[i + j]
                             elif closest_weekends == 1:
                                 if closest.index[index] % 7 == 4 or closest.index[index] % 7 == 5:
-                                    for j in range(flow_num):  # 若是则挨个取平均
-                                        forecasting_flow.ix[index, j] = forecasting_flow.ix[index, j] + (1 / 3) * flow[
-                                            i + j]
+                                    for j in range(value_num):  # 若是则挨个取平均
+                                        forecasting_flow.ix[index, j] = forecasting_flow.ix[index, j] + (1 / 3) * flow[i + j]
                                 else:
-                                    for j in range(flow_num):  # 若是则挨个取平均
-                                        forecasting_flow.ix[index, j] = forecasting_flow.ix[index, j] + (1 / 3) * flow[
-                                            i + j]
-                                print(index, 'f')
+                                    for j in range(value_num):  # 若是则挨个取平均
+                                        forecasting_flow.ix[index, j] = forecasting_flow.ix[index, j] + (1 / 3) * flow[i + j]
                             elif closest_weekends == 2:
                                 if closest.index[index] % 7 == 4 or closest.index[index] % 7 == 5:
-                                    for j in range(flow_num):  # 若是则挨个取平均
-                                        forecasting_flow.ix[index, j] = forecasting_flow.ix[index, j] + (1 / 3) * flow[
-                                            i + j]
+                                    for j in range(value_num):  # 若是则挨个取平均
+                                        forecasting_flow.ix[index, j] = forecasting_flow.ix[index, j] + (1 / 3) * flow[i + j]
                                 else:
-                                    for j in range(flow_num):  # 若是则挨个取平均
-                                        forecasting_flow.ix[index, j] = forecasting_flow.ix[index, j] + (1 / 3) * flow[
-                                            i + j]
-                                print(index, 'g')
-                        forecasting_flow.iloc[index] = forecasting_flow.iloc[index] + (
-                                    sum(flow[((aim_day + index) * flow_num): (aim_day + index + 1) * flow_num]) - sum(
-                                forecasting_flow.iloc[index])) / flow_num
-                        # forecasting_flow.iloc[index] = forecasting_flow.iloc[index] + (cum_flow.iloc[aim_day + index] - sum(forecasting_flow.iloc[index])) / flow_num
-                        print(forecasting_flow)
+                                    for j in range(value_num):  # 若是则挨个取平均
+                                        forecasting_flow.ix[index, j] = forecasting_flow.ix[index, j] + (1 / 3) * flow[i + j]
+                        forecasting_flow.iloc[index] = forecasting_flow.iloc[index] + (sum(flow[((aim_day + index) * value_num): (aim_day + index + 1) * value_num]) - sum(forecasting_flow.iloc[index])) / value_num
                     count += 1  # 天计数器加一
-
-        # print(cum_flow.iloc[aim_day], 'and', sum(flow[(aim_day * 333): (aim_day + 1) * 333]))
         print('预测值为：\n{}'.format(forecasting_flow))
 
-    def weighted_markov_chain(self, error):
+    def weighted_markov_chain(self, error, threshold):
         # 对当前日期前两周的误差情况进行统计，得到几种状态对应的概率转移矩阵
-        """
-        prob_look_back = 7
-        prob = []
-        error.tolist()
-        for i in range(len(error) - prob_look_back):
-            a = error[i: (i + prob_look_back)]
-            prob.append(a)
-        """
-        # ! 存在问题，到底是做离线还是在线的概率转移矩阵？离线可以用train_set做，在线则牵扯到迭代的问题，且需要屏蔽前14天的数值，且效果不一定好。
-        # 离线方案可以首选，和time series的shape distance一样。
         # 计算加权马尔科夫链权重系数（层出错，主要还是在计算各阶自相关系数上）
         mean = np.mean(error)
         grade = 5  # 5阶（级）
@@ -305,15 +259,15 @@ class forecasting:
         state = np.zeros(len(error))
         # 状态划分
         for i in range(len(error)):
-            if error[i] <= -0.012:
+            if error[i] <= threshold[0]:
                 state[i] = -2
-            elif -0.012 < error[i] < -0.005:
+            elif threshold[0] < error[i] < threshold[1]:
                 state[i] = -1
-            elif -0.005 <= error[i] <= 0.005:
+            elif threshold[1] <= error[i] <= threshold[2]:
                 state[i] = 0
-            elif 0.005 < error[i] < 0.012:
+            elif threshold[2] < error[i] < threshold[3]:
                 state[i] = 1
-            elif error[i] >= 0.012:
+            elif error[i] >= threshold[3]:
                 state[i] = 2
 
         # 计算加权马尔可夫转移矩阵
@@ -423,6 +377,7 @@ class forecasting:
 class lstm(nn.Module):
     def __init__(self, input_size, hidden_size, output_size, num_layers):
         super(lstm, self).__init__()
+        self.rnn = nn.LSTM(input_size, hidden_size, num_layers)
         self.reg = nn.Linear(hidden_size, output_size)
 
     def forward(self, x):

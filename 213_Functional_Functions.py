@@ -14,26 +14,26 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import json
-from kafka import producer
+from kafka import KafkaProducer
 from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
 from matplotlib.patches import ConnectionPatch
 from datetime import datetime
 
-def forecasting_dataset_perparation(data_w, look_back):
-    # 设置数据集，即前look_back个时间序列用来预测后一个时间序列
-    x_data, y_data = [], []  # 这里最好还是采用这种写法，使用numpy来做会有各种报错，涉及到list与numpy的转换以及相关问题
-    data_de = data_w
-    data_w = data_w.tolist()
-    # data_t = data_t.tolist()
-    for i in range(len(data_w) - look_back):
-        a = data_w[i:(i + look_back)]
+def forecasting_dataset_perparation(data, look_back):
+    #设置数据集，即前look_back个时间序列用来预测后一个时间序列
+    #数据集整理格式为(seq_len, batch, input_size)
+    #本函数所得数据集在训练时采用的方式full batch learning，该种方式对较小样本集有着更好的效果，可以更好的收敛。
+    #需要注意的是，该种数据集处理方法并不适用于在线过程，在线预测数据集的输入需要迭代更新，而不能使用full batch learning。
+    x_data, y_data = [], []
+    data = data.tolist()
+    for i in range(len(data) - look_back):
+        a = data[i:(i + look_back)]
         x_data.append(a)
-        y_data.append(data_w[i + look_back])
+        y_data.append(data[i + look_back])
     x_data = np.array(x_data)
     y_data = np.array(y_data)
-    # 取前90%作为训练集，后10%为测试集
+    # 取前80%作为训练集，后20%为测试集，batch size为1
     trainset_size = int(len(x_data) * 0.8)
-    # testset_size = len(x_data) - trainset_size
     x_train = x_data[:trainset_size]
     x_train = x_train.reshape(-1, 1, look_back)
     y_train = y_data[:trainset_size]
@@ -48,29 +48,31 @@ def forecasting_dataset_perparation(data_w, look_back):
     Y_train = torch.tensor(Y_train, dtype=torch.float32)
     X_test = torch.from_numpy(x_test)
     X_test = torch.tensor(X_test, dtype=torch.float32)
-    # print(X_train)
     return X_train, Y_train, X_test, y_test
 
 class criteria:
-    def MAPE(self, true, pred):
-        true = np.array(true)
-        pred = np.array(pred)
+    def __init__(self, true, pred):
+        self.true_value = true
+        self.pred_value = pred
+
+    def MAPE(self):
+        true = np.array(self.true_value)
+        pred = np.array(self.pred_value)
         for i in range(len(true)):
             if true[i] == 0:
                 true[i] = 0.01
         diff = np.abs(np.array(true) - np.array(pred))
-        #print('各点平均相对误差为：{}'.format(100 * diff / true))
         mape = np.mean(diff / true) * 100
         return mape
     
-    def MAE(self, true, pred):
-        return mean_absolute_error(true, pred)
+    def MAE(self):
+        return mean_absolute_error(self.true_value, self.pred_value)
 
-    def MSE(self, true, pred):
-        return mean_squared_error(true, pred)
+    def MSE(self):
+        return mean_squared_error(self.true_value, self.pred_value)
 
-    def LCAIR(self, true, pred):
-        lcair = (mean_squared_error(true[: len(true) - 1], pred[1: ]) - mean_squared_error(true, pred)) / mean_squared_error(true, pred)
+    def LCAIR(self):
+        lcair = (mean_squared_error(self.true_value[: len(self.true_value) - 1], self.pred_value[1: ]) - mean_squared_error(self.true_value, self.pred_value)) / mean_squared_error(self.true_value, self.pred_value)
         return lcair
 
 class communication:
@@ -81,20 +83,14 @@ class communication:
         #brokers = "10.200.197.81:9092"
         #topic = "jd_data"
         conf = {'bootstrap.servers': brokers}
-        p = producer(**conf)
-        def delivery_callback(err, msg):
-            if err:
-                sys.stderr.write('%% Message failed delivery: %s\n' % err)
-            else:
-                sys.stderr.write('%% Message delivered to %s [%d] @ %d\n' %
-                                 (msg.topic(), msg.partition(), msg.offset()))
+        p = KafkaProducer(**conf)
         try:
             # Produce line (without newline)
-            p.produce(topic, msg, callback=delivery_callback)
+            p.send(topic, msg, partition=0)
         except BufferError:
             sys.stderr.write('%% Local producer queue is full (%d messages awaiting delivery): try again\n' %
                              len(p))
-        p.poll(0)
+        #p.poll(0)
         sys.stderr.write('%% Waiting for %d deliveries\n' % len(p))
         p.flush()
 
