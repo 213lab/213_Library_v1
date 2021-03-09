@@ -99,7 +99,7 @@ class visualization:
         data = pd.read_csv(path, engine='python')
         # data = pd.read_excel(path)
         date = data['TIME']
-        value = data['0']
+        value = data['VALUE']
         date = pd.to_datetime(date)
         date = date.dt.strftime('%Y-%m-%d')  # 格式转换，消去小数。
 
@@ -113,12 +113,8 @@ class visualization:
                     value_plot.ix[count, i] = value.iloc[j]
                     count += 1
             count = 0
-            # plt.figure(i)
-            # print(value_plot[i])
-            # plt.plot(value_plot[i], linewidth=3, color='xkcd:light blue')
             plt.plot(value_plot[i], linewidth=3, alpha=0.6)
             plt.tight_layout()
-            # plt.fill_between(x=range(333), y1=np.min(value_plot[i]), y2=value_plot[i], facecolor='xkcd:very light blue')
             plt.title('Flow curve of day {}'.format(plot_date[i]))
 
     def date_plot_with_value(self, data, plot_date):
@@ -136,12 +132,8 @@ class visualization:
                     value_plot.ix[count, i] = value.iloc[j]
                     count += 1
             count = 0
-            # plt.figure(i)
-            # print(value_plot[i])
-            # plt.plot(value_plot[i], linewidth=3, color='xkcd:light blue')
             plt.plot(value_plot[i], linewidth=3, alpha=0.6)
             plt.tight_layout()
-            # plt.fill_between(x=range(333), y1=np.min(value_plot[i]), y2=value_plot[i], facecolor='xkcd:very light blue')
             plt.title('Flow curve of day {}'.format(plot_date[i]))
 
     def local_highlight_plot(self, true, pred, left_top_down, left_top_up, left_top_l, left_top_r, right_top_down, right_top_up, right_top_l, right_top_r):
